@@ -979,6 +979,12 @@
         let loadKg = 0;
         let liftCm = 0;
 
+        // Handstand push-ups: auto-calibrated head range (helps variants like "squat with hands")
+        /** @type {null | number} */
+        let hspuHeadMin = null; // smallest (highest) nose.y observed
+        /** @type {null | number} */
+        let hspuHeadMax = null; // largest (lowest) nose.y observed
+
         /** @type {null | "prep" | "pause"} */
         let countdownKind = null;
         let countdownEndsAt = 0;
@@ -1026,6 +1032,8 @@
           lastRepAt = 0;
           repArmed = false;
           repTimes = [];
+          hspuHeadMin = null;
+          hspuHeadMax = null;
           seriesTotal = 1;
           seriesIndex = 0;
           seriesActive = false;
@@ -1244,6 +1252,8 @@
             phase = "—";
             lastRepAt = now;
             repTimes = [];
+            hspuHeadMin = null;
+            hspuHeadMax = null;
             updateAdvancedUi(now, true);
 
             // reset per-set timer state (next set starts on first rep)
@@ -1657,9 +1667,77 @@
         }
 
         function updateHandstandPushupCounter(landmarks, now) {
-          // Handstand push-ups: for now, reuse the same elbow-angle logic as push-ups.
-          // If you want, we can tune thresholds/logic specifically for inverted reps later.
-          return updatePushupCounter(landmarks, now);
+          // Handstand push-ups (and similar "squat with hands" variants):
+          // - Primary: elbow flexion/extension (looser thresholds than standard push-ups)
+          // - Fallback: head (nose) vertical movement auto-calibrated per set
+
+          // elbow points (if visible)
+          const ls = getPoint(landmarks, 11);
+          const le = getPoint(landmarks, 13);
+          const lw = getPoint(landmarks, 15);
+          const rs = getPoint(landmarks, 12);
+          const re = getPoint(landmarks, 14);
+          const rw = getPoint(landmarks, 16);
+
+          // head point (often more reliable for these variants)
+          const nose = getPoint(landmarks, 0);
+
+          /** @type {null | number} */
+          let elbow = null;
+          if (ls && le && lw && rs && re && rw) {
+            const la = angleDeg(ls, le, lw);
+            const ra = angleDeg(rs, re, rw);
+            elbow = avgOrNull([la, ra]);
+          }
+
+          /** @type {null | number} */
+          const headY = nose ? nose.y : null; // 0 top, 1 bottom
+          if (typeof headY === "number" && Number.isFinite(headY)) {
+            if (hspuHeadMin == null || headY < hspuHeadMin) hspuHeadMin = headY;
+            if (hspuHeadMax == null || headY > hspuHeadMax) hspuHeadMax = headY;
+          }
+
+          // Elbow thresholds (more forgiving than push-ups; tuned for partial ROM)
+          const elbowUpTh = 155; // near extension
+          const elbowDownTh = 130; // bent
+          const elbowUp = elbow != null && elbow > elbowUpTh;
+          const elbowDown = elbow != null && elbow < elbowDownTh;
+
+          // Head thresholds (dynamic): detect "down" when head is low in frame (larger y)
+          let headUp = false;
+          let headDown = false;
+          if (
+            headY != null &&
+            hspuHeadMin != null &&
+            hspuHeadMax != null &&
+            Number.isFinite(hspuHeadMin) &&
+            Number.isFinite(hspuHeadMax)
+          ) {
+            const range = hspuHeadMax - hspuHeadMin;
+            // Need some real movement before trusting this signal (avoid noise-triggered reps)
+            if (range > 0.04) {
+              const upTh = hspuHeadMin + range * 0.35;
+              const downTh = hspuHeadMin + range * 0.75;
+              headUp = headY < upTh;
+              headDown = headY > downTh;
+            }
+          }
+
+          const isDown = elbowDown || headDown;
+          const isUp = elbowUp || headUp;
+
+          if (phase === "—") {
+            phase = isDown ? "down" : "up";
+          } else if (phase === "up") {
+            if (isDown) phase = "down";
+          } else if (phase === "down") {
+            if (isUp) {
+              if (now - lastRepAt > 500) {
+                onRep(now);
+              }
+              phase = "up";
+            }
+          }
         }
 
         function updatePullupCounter(landmarks, now) {
@@ -1955,6 +2033,8 @@
             phase = "—";
             lastRepAt = 0;
             repTimes = [];
+            hspuHeadMin = null;
+            hspuHeadMax = null;
             repsEl.textContent = "0";
             phaseEl.textContent = "Phase: —";
             updateAdvancedUi(performance.now(), true);
