@@ -547,7 +547,13 @@
         .centerHint .small { font-size: 11px; }
 
         /* Settings button only needed on mobile */
-        #uiToggle { display: inline-flex; }
+        #uiToggle {
+          display: inline-flex;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100%;
+        }
 
         /* Expanded mode (tap "Settings") */
         body.uiExpanded .footer { display: grid; grid-template-columns: 1fr; gap: 10px; }
@@ -843,6 +849,29 @@
         const advChartCtx = advChartEl ? advChartEl.getContext("2d") : null;
 
         const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+        const compactUiMq = window.matchMedia("(max-width: 720px), (max-height: 680px)");
+
+        function getSelectedExerciseLabel() {
+          const opt = exerciseEl?.selectedOptions?.[0];
+          const label = (opt?.textContent || "").trim();
+          return label || "Exercise";
+        }
+
+        function updateUiToggleLabel(expandedOverride = null) {
+          if (!uiToggleBtn) return;
+          const expanded =
+            typeof expandedOverride === "boolean"
+              ? expandedOverride
+              : document.body.classList.contains("uiExpanded");
+
+          uiToggleBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
+
+          const exerciseLabel = getSelectedExerciseLabel();
+          const prefix = expanded ? "Close" : "Settings";
+
+          // Only show exercise name on mobile/compact UI.
+          uiToggleBtn.textContent = compactUiMq.matches ? `${prefix} · ${exerciseLabel}` : prefix;
+        }
 
         function setHint(title, body, show) {
           centerHintTitle.textContent = title;
@@ -2025,8 +2054,7 @@
           resetBtn.addEventListener("click", () => hardReset());
           function setUiExpanded(next) {
             document.body.classList.toggle("uiExpanded", !!next);
-            uiToggleBtn?.setAttribute("aria-expanded", next ? "true" : "false");
-            if (uiToggleBtn) uiToggleBtn.textContent = next ? "Close" : "Settings";
+            updateUiToggleLabel(!!next);
             // Avoid weird layout when re-opening on mobile
             if (!next && advancedPanelEl && "open" in advancedPanelEl) advancedPanelEl.open = false;
           }
@@ -2083,6 +2111,7 @@
             repsEl.textContent = "0";
             phaseEl.textContent = "Phase: —";
             updateAdvancedUi(performance.now(), true);
+            updateUiToggleLabel();
           });
 
           mirrorEl.addEventListener("change", () => {
@@ -2094,11 +2123,16 @@
           window.addEventListener("resize", resizeCanvasToViewport);
           resizeCanvasToViewport();
           window.addEventListener("resize", () => updateAdvancedUi(performance.now(), true));
+          window.addEventListener("resize", () => updateUiToggleLabel());
+          compactUiMq.addEventListener?.("change", () => updateUiToggleLabel());
           advancedPanelEl?.addEventListener("toggle", () => {
             // Allow layout to settle before measuring canvas
             window.setTimeout(() => updateAdvancedUi(performance.now(), true), 0);
           });
           requestAnimationFrame(tickUi);
+
+          // Initial label (useful when the page loads already in compact layout)
+          updateUiToggleLabel();
         }
 
         main();
