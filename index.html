@@ -350,6 +350,40 @@
         align-items: end;
         gap: 10px;
       }
+
+      /* Mobile bottom readout (hidden on desktop) */
+      .mobileReadout { display: none; padding: 12px; }
+      .mobileReadoutGrid {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 12px;
+        align-items: end;
+      }
+      .mobileBlock { display: grid; gap: 4px; }
+      .mobileLabel {
+        font-size: 12px;
+        color: var(--muted);
+        letter-spacing: 0.2px;
+      }
+      .mobileBigReps {
+        font-weight: 800;
+        letter-spacing: 0.2px;
+        line-height: 0.95;
+        font-size: clamp(40px, 10vw, 68px);
+      }
+      .mobileBigTime {
+        font-weight: 750;
+        letter-spacing: 0.2px;
+        line-height: 1;
+        font-size: clamp(22px, 6.5vw, 38px);
+        text-align: right;
+      }
+      .mobileSub {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.62);
+      }
+      .mobileSubRight { text-align: right; }
+      .mobileAccent { color: rgba(110, 231, 255, 0.92); }
       .toggles {
         padding: 10px 12px;
         display: flex;
@@ -472,37 +506,34 @@
 
         /* Hide non-essential panels by default */
         .brand { display: none; }
-        .footer { display: none; }
+        .footer { display: grid; justify-items: stretch; }
+        .toggles { display: none; }
+        .mobileReadout { display: block; }
 
         .topbar { grid-template-columns: 1fr; }
 
-        /* Turn controls into a single slim dock */
+        /* Compact dock: stats strip + buttons */
         .controls {
           min-width: 0;
           padding: 8px;
           gap: 8px;
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          justify-content: flex-end;
           max-height: 10vh;
         }
 
         .row { display: none; }
         .mini { display: none; }
 
-        .stats {
-          display: flex;
-          gap: 8px;
-          grid-template-columns: none;
-        }
-        .stat { padding: 6px 8px; }
-        .stat .k { display: none; }
-        .stat .v { font-size: 18px; line-height: 1; }
+        .stats { display: none; }
+        #advancedPanel { display: none; }
 
         .buttons {
           display: flex;
           gap: 6px;
           grid-template-columns: none;
+          justify-content: flex-end;
         }
         button {
           padding: 7px 8px;
@@ -521,18 +552,38 @@
 
         /* Expanded mode (tap "Settings") */
         body.uiExpanded .footer { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        body.uiExpanded .toggles { display: flex; justify-content: space-between; }
         body.uiExpanded .controls {
           display: grid;
-          max-height: 42vh; /* still prevents covering most of the camera feed */
+          grid-template-columns: 1fr;
+          max-height: 72vh; /* enough room for advanced panel + chart */
           overflow: auto;
           overscroll-behavior: contain;
           -webkit-overflow-scrolling: touch;
         }
         body.uiExpanded .row { display: grid; }
-        body.uiExpanded .stats { display: grid; grid-template-columns: 1fr 1fr; }
+        body.uiExpanded .stats {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          overflow: visible;
+          padding-bottom: 0;
+        }
+        body.uiExpanded .stats .stat { display: grid; }
+        body.uiExpanded #advancedPanel { display: block; }
+        body.uiExpanded .advancedGrid { grid-template-columns: 1fr; }
+        body.uiExpanded #advChart { height: 110px; }
         body.uiExpanded .stat .k { display: block; }
         body.uiExpanded .mini { display: block; }
-        body.uiExpanded .buttons { display: grid; grid-template-columns: 1fr 1fr; }
+        body.uiExpanded .buttons {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          position: sticky;
+          bottom: 0;
+          padding-top: 10px;
+          background: linear-gradient(180deg, rgba(5, 7, 18, 0.0), rgba(5, 7, 18, 0.65) 45%, rgba(5, 7, 18, 0.85));
+          backdrop-filter: blur(10px) saturate(130%);
+          -webkit-backdrop-filter: blur(10px) saturate(130%);
+        }
         body.uiExpanded #uiToggle { grid-column: 1 / -1; }
       }
 
@@ -596,6 +647,14 @@
                 Target reps
                 <input id="targetReps" type="number" min="1" step="1" value="10" />
               </label>
+              <label>
+                Load (kg)
+                <input id="loadKg" type="number" min="0" step="1" value="0" />
+              </label>
+              <label>
+                Lift height (cm)
+                <input id="liftCm" type="number" min="0" step="1" value="0" />
+              </label>
               <label class="span2">
                 Pause (seconds)
                 <input id="pauseSeconds" type="number" min="0" step="1" value="10" />
@@ -608,14 +667,24 @@
 
             <div class="stats">
               <div class="card stat">
+                <div id="timeLabel" class="k">Time</div>
+                <div id="time" class="v">01:00</div>
+                <div id="status" class="mini">Ready</div>
+              </div>
+              <div class="card stat">
                 <div class="k">Reps</div>
                 <div id="reps" class="v">0</div>
                 <div id="phase" class="mini">Phase: —</div>
               </div>
               <div class="card stat">
-                <div id="timeLabel" class="k">Time</div>
-                <div id="time" class="v">01:00</div>
-                <div id="status" class="mini">Ready</div>
+                <div class="k">Power (kW)</div>
+                <div id="powerKw" class="v">—</div>
+                <div class="mini">Est. from load + height</div>
+              </div>
+              <div class="card stat">
+                <div class="k">Load (kg)</div>
+                <div id="loadKgStat" class="v">0</div>
+                <div id="liftCmStat" class="mini">Height: 0 cm</div>
               </div>
             </div>
 
@@ -673,6 +742,20 @@
         <div></div>
 
         <div class="footer">
+          <div class="card mobileReadout" aria-label="Live workout readout">
+            <div class="mobileReadoutGrid">
+              <div class="mobileBlock">
+                <div class="mobileLabel">Reps</div>
+                <div id="mobileReps" class="mobileBigReps mobileAccent">0</div>
+                <div id="mobilePhase" class="mobileSub">Phase: —</div>
+              </div>
+              <div class="mobileBlock">
+                <div id="mobileTimeLabel" class="mobileLabel" style="text-align:right">Time</div>
+                <div id="mobileTime" class="mobileBigTime">01:00</div>
+                <div id="mobileStatus" class="mobileSub mobileSubRight">Ready</div>
+              </div>
+            </div>
+          </div>
           <div class="card toggles">
             <label class="toggle">
               <input id="draw" type="checkbox" checked />
@@ -713,6 +796,8 @@
         const modeEl = document.getElementById("mode");
         const durationEl = document.getElementById("duration");
         const targetRepsEl = document.getElementById("targetReps");
+        const loadKgEl = document.getElementById("loadKg");
+        const liftCmEl = document.getElementById("liftCm");
         const pauseSecondsEl = document.getElementById("pauseSeconds");
         const seriesEl = document.getElementById("series");
         const repsEl = document.getElementById("reps");
@@ -720,6 +805,14 @@
         const timeEl = document.getElementById("time");
         const statusEl = document.getElementById("status");
         const phaseEl = document.getElementById("phase");
+        const powerKwEl = document.getElementById("powerKw");
+        const loadKgStatEl = document.getElementById("loadKgStat");
+        const liftCmStatEl = document.getElementById("liftCmStat");
+        const mobileRepsEl = document.getElementById("mobileReps");
+        const mobilePhaseEl = document.getElementById("mobilePhase");
+        const mobileTimeLabelEl = document.getElementById("mobileTimeLabel");
+        const mobileTimeEl = document.getElementById("mobileTime");
+        const mobileStatusEl = document.getElementById("mobileStatus");
         const startBtn = document.getElementById("start");
         const pauseBtn = document.getElementById("pause");
         const resetBtn = document.getElementById("reset");
@@ -883,6 +976,8 @@
         let repArmed = false; // waiting for first rep to start/resume timer
         /** @type {number[]} */
         let repTimes = []; // timestamps (performance.now) for current set reps
+        let loadKg = 0;
+        let liftCm = 0;
 
         /** @type {null | "prep" | "pause"} */
         let countdownKind = null;
@@ -988,6 +1083,22 @@
           return n;
         }
 
+        function readLoadKg() {
+          const raw = Number(loadKgEl?.value);
+          const n = Number.isFinite(raw) ? clamp(raw, 0, 999) : 0;
+          loadKg = Math.round(n * 10) / 10;
+          if (loadKgEl) loadKgEl.value = String(loadKg);
+          return loadKg;
+        }
+
+        function readLiftCm() {
+          const raw = Number(liftCmEl?.value);
+          const n = Number.isFinite(raw) ? clamp(raw, 0, 300) : 0;
+          liftCm = Math.round(n * 10) / 10;
+          if (liftCmEl) liftCmEl.value = String(liftCm);
+          return liftCm;
+        }
+
         function readPauseSeconds() {
           const raw = Number(pauseSecondsEl?.value);
           const sec = Number.isFinite(raw) ? clamp(raw, 0, 60 * 60) : 10;
@@ -1025,6 +1136,18 @@
             return;
           }
           timeEl.textContent = formatTime(getDisplayedMs(now));
+        }
+
+        let lastMobileReadoutAt = 0;
+        function updateMobileReadout(now) {
+          if (!mobileRepsEl || !mobilePhaseEl || !mobileTimeLabelEl || !mobileTimeEl || !mobileStatusEl) return;
+          if (now - lastMobileReadoutAt < 100) return;
+          lastMobileReadoutAt = now;
+          mobileRepsEl.textContent = String(reps);
+          mobilePhaseEl.textContent = `Phase: ${phase === "—" ? "—" : phase}`;
+          mobileTimeLabelEl.textContent = String(timeLabelEl?.textContent || "Time");
+          mobileTimeEl.textContent = String(timeEl?.textContent || "—");
+          mobileStatusEl.textContent = String(statusEl?.textContent || "");
         }
 
         function withSetPrefix(label) {
@@ -1278,6 +1401,33 @@
         }
 
         function updateAdvancedUi(now, force = false) {
+          // Update the always-visible stats first (Power / Load).
+          (function updatePowerAndLoadUi() {
+            if (loadKgStatEl) loadKgStatEl.textContent = String(readLoadKg());
+            if (liftCmStatEl) liftCmStatEl.textContent = `Height: ${readLiftCm()} cm`;
+
+            if (!powerKwEl) return;
+            if (repTimes.length < 2) {
+              powerKwEl.textContent = "—";
+              return;
+            }
+            if (loadKg <= 0 || liftCm <= 0) {
+              powerKwEl.textContent = "—";
+              return;
+            }
+            const activeMs = Math.max(0, repTimes[repTimes.length - 1] - repTimes[0]);
+            if (activeMs <= 0) {
+              powerKwEl.textContent = "—";
+              return;
+            }
+            const g = 9.80665;
+            const heightM = liftCm / 100;
+            const workJ = loadKg * g * heightM * repTimes.length;
+            const pW = workJ / (activeMs / 1000);
+            const pKw = pW / 1000;
+            powerKwEl.textContent = Number.isFinite(pKw) ? pKw.toFixed(3) : "—";
+          })();
+
           if (!advSummaryEl || !advPaceEl || !advActiveEl || !advAvgIntEl || !advLastIntEl || !advBestWorstEl || !advStdEl)
             return;
           if (!force && now - lastAdvUiAt < 250) return;
@@ -1652,6 +1802,7 @@
           }
 
           updatePhaseUi();
+          updateMobileReadout(now);
           requestAnimationFrame(tickUi);
         }
 
@@ -1661,6 +1812,8 @@
           updateModeUi();
           readDuration();
           readTargetReps();
+          readLoadKg();
+          readLiftCm();
           resetSession();
 
           // If not in secure context, webcam will likely fail (except localhost in some browsers).
@@ -1739,11 +1892,17 @@
           startBtn.addEventListener("click", () => start());
           pauseBtn.addEventListener("click", () => pause());
           resetBtn.addEventListener("click", () => hardReset());
+          function setUiExpanded(next) {
+            document.body.classList.toggle("uiExpanded", !!next);
+            uiToggleBtn?.setAttribute("aria-expanded", next ? "true" : "false");
+            if (uiToggleBtn) uiToggleBtn.textContent = next ? "Close" : "Settings";
+            // Avoid weird layout when re-opening on mobile
+            if (!next && advancedPanelEl && "open" in advancedPanelEl) advancedPanelEl.open = false;
+          }
+
           uiToggleBtn?.addEventListener("click", () => {
             const next = !document.body.classList.contains("uiExpanded");
-            document.body.classList.toggle("uiExpanded", next);
-            uiToggleBtn.setAttribute("aria-expanded", next ? "true" : "false");
-            uiToggleBtn.textContent = next ? "Close" : "Settings";
+            setUiExpanded(next);
           });
 
           durationEl.addEventListener("change", () => {
@@ -1770,6 +1929,16 @@
 
           targetRepsEl?.addEventListener("change", () => {
             readTargetReps();
+          });
+
+          loadKgEl?.addEventListener("change", () => {
+            readLoadKg();
+            updateAdvancedUi(performance.now(), true);
+          });
+
+          liftCmEl?.addEventListener("change", () => {
+            readLiftCm();
+            updateAdvancedUi(performance.now(), true);
           });
 
           exerciseEl.addEventListener("change", () => {
