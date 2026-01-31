@@ -209,6 +209,85 @@
         color: var(--muted);
       }
 
+      /* Advanced stats (expandable) */
+      details.advancedPanel {
+        padding: 10px 12px;
+      }
+      details.advancedPanel > summary {
+        list-style: none;
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        outline: none;
+      }
+      details.advancedPanel > summary::-webkit-details-marker { display: none; }
+      details.advancedPanel > summary:focus-visible {
+        border-radius: 12px;
+        box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.18);
+      }
+      .advancedTitle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 650;
+      }
+      .chev {
+        width: 18px;
+        height: 18px;
+        display: inline-block;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(0, 0, 0, 0.22);
+        position: relative;
+        flex: 0 0 auto;
+      }
+      .chev::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        width: 7px;
+        height: 7px;
+        border-right: 2px solid rgba(255, 255, 255, 0.78);
+        border-bottom: 2px solid rgba(255, 255, 255, 0.78);
+        transform: translateY(-1px) rotate(45deg);
+      }
+      details[open].advancedPanel .chev::before { transform: translateY(1px) rotate(225deg); }
+      .advancedBody { margin-top: 10px; display: grid; gap: 10px; }
+      .advancedGrid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .advStat {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.02)),
+          rgba(0, 0, 0, 0.18);
+        border-radius: 14px;
+        padding: 10px 12px;
+        display: grid;
+        gap: 2px;
+      }
+      .advStat .k { font-size: 12px; color: var(--muted); }
+      .advStat .v { font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }
+      .chartWrap {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(0, 0, 0, 0.22);
+        border-radius: 14px;
+        padding: 10px 10px 8px;
+      }
+      #advChart {
+        width: 100%;
+        height: 140px;
+        display: block;
+        border-radius: 12px;
+      }
+      .chartHint { margin-top: 6px; font-size: 12px; color: var(--muted); }
+
       .buttons {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
@@ -319,6 +398,60 @@
       .centerHint strong { display: block; margin-bottom: 6px; }
       .centerHint .small { color: var(--muted); font-size: 12px; line-height: 1.35; }
 
+      .span2 { grid-column: 1 / -1; }
+
+      /* Rep feedback: green border flash */
+      .repFlash {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 5;
+        opacity: 0;
+        box-shadow:
+          inset 0 0 0 0 rgba(53, 208, 127, 0),
+          inset 0 0 0 0 rgba(53, 208, 127, 0);
+        transition: opacity 120ms ease, box-shadow 120ms ease;
+      }
+      .repFlash.on {
+        opacity: 1;
+        box-shadow:
+          inset 0 0 0 10px rgba(53, 208, 127, 0.85),
+          inset 0 0 0 18px rgba(53, 208, 127, 0.18);
+      }
+
+      /* Timed pause/prep box */
+      .pauseBox {
+        pointer-events: none;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        max-width: min(520px, 92vw);
+        padding: 16px 18px;
+        display: none;
+        z-index: 6;
+      }
+      .pauseBox .title {
+        font-size: 12px;
+        letter-spacing: 0.5px;
+        color: var(--muted);
+        margin-bottom: 6px;
+        text-transform: uppercase;
+      }
+      .pauseBox .time {
+        font-size: 42px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        line-height: 1.05;
+        margin-bottom: 6px;
+      }
+      .pauseBox .sub {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
       @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
         .card {
           background: rgba(15, 18, 30, 0.92);
@@ -414,12 +547,19 @@
       <video id="video" playsinline muted></video>
       <canvas id="output"></canvas>
 
+      <div id="repFlash" class="repFlash" aria-hidden="true"></div>
+
+      <div id="pauseBox" class="card pauseBox" aria-live="polite">
+        <div id="pauseBoxTitle" class="title">Pause</div>
+        <div id="pauseBoxTime" class="time">00:10</div>
+        <div id="pauseBoxSub" class="sub">Get ready…</div>
+      </div>
+
       <div class="hud">
         <div class="topbar">
           <div class="card brand">
             <h1>
               Reps Count
-              <span class="pill">MediaPipe Pose</span>
               <span class="badge" title="Pose tracking confidence">
                 <span id="trackDot" class="dot"></span>
                 <span id="trackText">Waiting…</span>
@@ -442,8 +582,27 @@
                 </select>
               </label>
               <label>
+                Mode
+                <select id="mode">
+                  <option value="time">Time</option>
+                  <option value="reps">Reps</option>
+                </select>
+              </label>
+              <label>
                 Timer (seconds, 0 = stopwatch)
                 <input id="duration" type="number" min="0" step="5" value="60" />
+              </label>
+              <label>
+                Target reps
+                <input id="targetReps" type="number" min="1" step="1" value="10" />
+              </label>
+              <label class="span2">
+                Pause (seconds)
+                <input id="pauseSeconds" type="number" min="0" step="1" value="10" />
+              </label>
+              <label class="span2">
+                Series (sets)
+                <input id="series" type="number" min="1" step="1" value="3" />
               </label>
             </div>
 
@@ -454,11 +613,53 @@
                 <div id="phase" class="mini">Phase: —</div>
               </div>
               <div class="card stat">
-                <div class="k">Time</div>
+                <div id="timeLabel" class="k">Time</div>
                 <div id="time" class="v">01:00</div>
                 <div id="status" class="mini">Ready</div>
               </div>
             </div>
+
+            <details id="advancedPanel" class="card advancedPanel">
+              <summary aria-label="Toggle advanced statistics">
+                <div class="advancedTitle">
+                  <span class="chev" aria-hidden="true"></span>
+                  <span>Advanced stats</span>
+                </div>
+                <div id="advSummary" class="mini">—</div>
+              </summary>
+              <div class="advancedBody">
+                <div class="advancedGrid" aria-label="Advanced statistics">
+                  <div class="advStat">
+                    <div class="k">Pace</div>
+                    <div id="advPace" class="v">—</div>
+                  </div>
+                  <div class="advStat">
+                    <div class="k">Active time</div>
+                    <div id="advActive" class="v">—</div>
+                  </div>
+                  <div class="advStat">
+                    <div class="k">Avg rep interval</div>
+                    <div id="advAvgInt" class="v">—</div>
+                  </div>
+                  <div class="advStat">
+                    <div class="k">Last interval</div>
+                    <div id="advLastInt" class="v">—</div>
+                  </div>
+                  <div class="advStat">
+                    <div class="k">Best / worst interval</div>
+                    <div id="advBestWorst" class="v">—</div>
+                  </div>
+                  <div class="advStat">
+                    <div class="k">Consistency (σ)</div>
+                    <div id="advStd" class="v">—</div>
+                  </div>
+                </div>
+                <div class="chartWrap">
+                  <canvas id="advChart" aria-label="Reps over time graph"></canvas>
+                  <div class="chartHint">Graph: cumulative reps over time (current set).</div>
+                </div>
+              </div>
+            </details>
 
             <div class="buttons">
               <button id="start" class="primary" type="button">Start</button>
@@ -509,8 +710,13 @@
         const ctx = canvasEl.getContext("2d", { alpha: false });
 
         const exerciseEl = document.getElementById("exercise");
+        const modeEl = document.getElementById("mode");
         const durationEl = document.getElementById("duration");
+        const targetRepsEl = document.getElementById("targetReps");
+        const pauseSecondsEl = document.getElementById("pauseSeconds");
+        const seriesEl = document.getElementById("series");
         const repsEl = document.getElementById("reps");
+        const timeLabelEl = document.getElementById("timeLabel");
         const timeEl = document.getElementById("time");
         const statusEl = document.getElementById("status");
         const phaseEl = document.getElementById("phase");
@@ -526,6 +732,22 @@
         const centerHint = document.getElementById("centerHint");
         const centerHintTitle = document.getElementById("centerHintTitle");
         const centerHintBody = document.getElementById("centerHintBody");
+        const repFlashEl = document.getElementById("repFlash");
+        const pauseBoxEl = document.getElementById("pauseBox");
+        const pauseBoxTitleEl = document.getElementById("pauseBoxTitle");
+        const pauseBoxTimeEl = document.getElementById("pauseBoxTime");
+        const pauseBoxSubEl = document.getElementById("pauseBoxSub");
+        const advancedPanelEl = document.getElementById("advancedPanel");
+        const advSummaryEl = document.getElementById("advSummary");
+        const advPaceEl = document.getElementById("advPace");
+        const advActiveEl = document.getElementById("advActive");
+        const advAvgIntEl = document.getElementById("advAvgInt");
+        const advLastIntEl = document.getElementById("advLastInt");
+        const advBestWorstEl = document.getElementById("advBestWorst");
+        const advStdEl = document.getElementById("advStd");
+        /** @type {HTMLCanvasElement | null} */
+        const advChartEl = /** @type {any} */ (document.getElementById("advChart"));
+        const advChartCtx = advChartEl ? advChartEl.getContext("2d") : null;
 
         const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
@@ -548,9 +770,21 @@
           return `${mm}:${ss}`;
         }
 
+        function formatSecondsFromMs(ms) {
+          const s = Math.max(0, ms) / 1000;
+          if (!Number.isFinite(s)) return "—";
+          if (s < 10) return `${s.toFixed(2)} s`;
+          if (s < 100) return `${s.toFixed(1)} s`;
+          return `${Math.round(s)} s`;
+        }
+
         // ---- Audio (rep sounds, timer beep) ----
         /** @type {AudioContext | null} */
         let audioCtx = null;
+        /** @type {GainNode | null} */
+        let masterGain = null;
+        /** @type {DynamicsCompressorNode | null} */
+        let masterLimiter = null;
 
         function ensureAudio() {
           if (!soundEl?.checked) return null;
@@ -558,10 +792,32 @@
           if (!Ctx) return null;
           if (!audioCtx) audioCtx = new Ctx();
           if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+          if (!masterGain) {
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = 1.0; // full-scale
+          }
+          if (!masterLimiter) {
+            // A limiter-ish compressor so we can push loud without harsh clipping
+            masterLimiter = audioCtx.createDynamicsCompressor();
+            masterLimiter.threshold.value = -10;
+            masterLimiter.knee.value = 0;
+            masterLimiter.ratio.value = 20;
+            masterLimiter.attack.value = 0.003;
+            masterLimiter.release.value = 0.09;
+          }
+          // Ensure chain is connected (idempotent in practice)
+          try {
+            masterGain.disconnect();
+          } catch (_) {}
+          try {
+            masterLimiter.disconnect();
+          } catch (_) {}
+          masterGain.connect(masterLimiter);
+          masterLimiter.connect(audioCtx.destination);
           return audioCtx;
         }
 
-        function beep({ freq = 880, ms = 70, gain = 0.08 } = {}) {
+        function beep({ freq = 880, ms = 70, gain = 1.0 } = {}) {
           if (!soundEl?.checked) return;
           const ac = ensureAudio();
           if (!ac) return;
@@ -576,21 +832,47 @@
 
           // soft click-less envelope
           g.gain.setValueAtTime(0.0001, t0);
-          g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
+          g.gain.exponentialRampToValueAtTime(clamp(gain, 0.0001, 1.0), t0 + 0.01);
           g.gain.exponentialRampToValueAtTime(0.0001, t1);
 
-          o.connect(g).connect(ac.destination);
+          // Route through master chain (louder + limited)
+          o.connect(g).connect(masterGain || ac.destination);
           o.start(t0);
           o.stop(t1 + 0.02);
         }
 
-        function beepRep() {
-          // short, slightly higher pitch
-          beep({ freq: 1046.5, ms: 55, gain: 0.07 });
+        function beepStartSoft() {
+          // user gesture cue (kept distinct)
+          beep({ freq: 523.25, ms: 80, gain: 1.0 });
+        }
+
+        function beepHalf() {
+          beep({ freq: 659.25, ms: 85, gain: 1.0 });
+        }
+
+        function beepTen() {
+          beep({ freq: 784, ms: 90, gain: 1.0 });
+        }
+
+        function beepCount3() {
+          beep({ freq: 988, ms: 55, gain: 1.0 });
+        }
+
+        function beepGo() {
+          beep({ freq: 1046.5, ms: 110, gain: 1.0 });
         }
 
         function beepDone() {
-          beep({ freq: 880, ms: 120, gain: 0.08 });
+          beep({ freq: 880, ms: 120, gain: 1.0 });
+        }
+
+        function repFreq(repCount) {
+          // Higher rep => higher pitch (bounded)
+          return clamp(680 + repCount * 28, 680, 1650);
+        }
+
+        function beepRep(repCount) {
+          beep({ freq: repFreq(repCount), ms: 55, gain: 1.0 });
         }
 
         // ---- Session state ----
@@ -598,13 +880,36 @@
         let reps = 0;
         let phase = "—"; // up / down / —
         let lastRepAt = 0;
+        let repArmed = false; // waiting for first rep to start/resume timer
+        /** @type {number[]} */
+        let repTimes = []; // timestamps (performance.now) for current set reps
+
+        /** @type {null | "prep" | "pause"} */
+        let countdownKind = null;
+        let countdownEndsAt = 0;
+        let countdownTotalMs = 0;
+        let countdownHalfBeeped = false;
+        let countdownTenBeeped = false;
+        /** @type {Set<number>} */
+        let countdownLastBeeped = new Set();
+        let repFlashTimeout = 0;
 
         // Timer: countdown if duration > 0, else stopwatch
         let durationMs = 60_000;
         let startedAt = 0;
         let pausedAccum = 0;
         let pauseStartedAt = 0;
-        let timerEnded = false;
+        let timerEnded = false; // workout done
+
+        // Series (sets)
+        let seriesTotal = 1;
+        let seriesIndex = 0; // 0-based
+        let seriesActive = false;
+
+        // Mode
+        /** @type {"time" | "reps"} */
+        let mode = "time";
+        let targetReps = 10;
 
         function getElapsedMs(now) {
           if (!startedAt) return 0;
@@ -624,6 +929,25 @@
           reps = 0;
           phase = "—";
           lastRepAt = 0;
+          repArmed = false;
+          repTimes = [];
+          seriesTotal = 1;
+          seriesIndex = 0;
+          seriesActive = false;
+          mode = "time";
+          targetReps = 10;
+          countdownKind = null;
+          countdownEndsAt = 0;
+          countdownTotalMs = 0;
+          countdownHalfBeeped = false;
+          countdownTenBeeped = false;
+          countdownLastBeeped = new Set();
+          if (repFlashTimeout) {
+            window.clearTimeout(repFlashTimeout);
+            repFlashTimeout = 0;
+          }
+          repFlashEl?.classList.remove("on");
+          if (pauseBoxEl) pauseBoxEl.style.display = "none";
           startedAt = 0;
           pausedAccum = 0;
           pauseStartedAt = 0;
@@ -632,7 +956,15 @@
           phaseEl.textContent = "Phase: —";
           statusEl.textContent = "Ready";
           const now = performance.now();
-          timeEl.textContent = formatTime(getDisplayedMs(now));
+          updatePrimaryDisplay(now);
+          updateAdvancedUi(now, true);
+        }
+
+        function readMode() {
+          const raw = String(modeEl?.value || "time");
+          mode = raw === "reps" ? "reps" : "time";
+          if (modeEl) modeEl.value = mode;
+          return mode;
         }
 
         function readDuration() {
@@ -641,28 +973,432 @@
           durationEl.value = String(sec);
           durationMs = sec * 1000;
           const now = performance.now();
+          updatePrimaryDisplay(now);
+          updateAdvancedUi(now, true);
+        }
+
+        function readTargetReps() {
+          const raw = Number(targetRepsEl?.value);
+          const n = Number.isFinite(raw) ? Math.floor(clamp(raw, 1, 999)) : 10;
+          targetReps = n;
+          if (targetRepsEl) targetRepsEl.value = String(n);
+          const now = performance.now();
+          updatePrimaryDisplay(now);
+          updateAdvancedUi(now, true);
+          return n;
+        }
+
+        function readPauseSeconds() {
+          const raw = Number(pauseSecondsEl?.value);
+          const sec = Number.isFinite(raw) ? clamp(raw, 0, 60 * 60) : 10;
+          if (pauseSecondsEl) pauseSecondsEl.value = String(sec);
+          return sec * 1000;
+        }
+
+        function readSeriesCount() {
+          const raw = Number(seriesEl?.value);
+          const n = Number.isFinite(raw) ? Math.floor(clamp(raw, 1, 99)) : 1;
+          if (seriesEl) seriesEl.value = String(n);
+          return n;
+        }
+
+        function updateModeUi() {
+          const m = readMode();
+          if (m === "reps") {
+            if (timeLabelEl) timeLabelEl.textContent = "Reps left";
+            if (durationEl) durationEl.disabled = true;
+            if (targetRepsEl) targetRepsEl.disabled = false;
+          } else {
+            if (timeLabelEl) timeLabelEl.textContent = "Time";
+            if (durationEl) durationEl.disabled = false;
+            if (targetRepsEl) targetRepsEl.disabled = true;
+          }
+          const now = performance.now();
+          updatePrimaryDisplay(now);
+          updateAdvancedUi(now, true);
+        }
+
+        function updatePrimaryDisplay(now) {
+          if (mode === "reps") {
+            const left = Math.max(0, (targetReps || 1) - reps);
+            timeEl.textContent = String(left);
+            return;
+          }
           timeEl.textContent = formatTime(getDisplayedMs(now));
+        }
+
+        function withSetPrefix(label) {
+          if (!seriesActive || seriesTotal <= 1) return label;
+          const setN = clamp(seriesIndex + 1, 1, seriesTotal);
+          return `Set ${setN}/${seriesTotal} · ${label}`;
+        }
+
+        function flashRepBorder() {
+          if (!repFlashEl) return;
+          repFlashEl.classList.add("on");
+          if (repFlashTimeout) window.clearTimeout(repFlashTimeout);
+          repFlashTimeout = window.setTimeout(() => repFlashEl.classList.remove("on"), 160);
+        }
+
+        function showPauseBox(title, remainingMs, sub) {
+          if (!pauseBoxEl || !pauseBoxTitleEl || !pauseBoxTimeEl || !pauseBoxSubEl) return;
+          pauseBoxTitleEl.textContent = title;
+          pauseBoxTimeEl.textContent = formatTime(remainingMs);
+          pauseBoxSubEl.textContent = sub;
+          pauseBoxEl.style.display = "block";
+        }
+
+        function hidePauseBox() {
+          if (!pauseBoxEl) return;
+          pauseBoxEl.style.display = "none";
+        }
+
+        function beginCountdown(kind, totalMs) {
+          const ms = Math.max(0, Math.floor(totalMs || 0));
+          if (ms <= 0) {
+            countdownKind = null;
+            hidePauseBox();
+            return false;
+          }
+          const now = performance.now();
+          countdownKind = kind;
+          countdownTotalMs = ms;
+          countdownEndsAt = now + ms;
+          countdownHalfBeeped = false;
+          countdownTenBeeped = false;
+          countdownLastBeeped = new Set();
+          showPauseBox(kind === "prep" ? "Pause" : "Pause", ms, kind === "prep" ? "Get ready…" : "Rest…");
+          return true;
+        }
+
+        function endCountdown() {
+          countdownKind = null;
+          countdownEndsAt = 0;
+          countdownTotalMs = 0;
+          countdownHalfBeeped = false;
+          countdownTenBeeped = false;
+          countdownLastBeeped = new Set();
+          hidePauseBox();
+        }
+
+        function armForFirstRep(label) {
+          repArmed = true;
+          running = false;
+          statusEl.textContent = withSetPrefix(label);
+        }
+
+        function startOrResumeTimerOnRep(now) {
+          if (timerEnded) return;
+          const startingFreshSet = !startedAt;
+          if (!startedAt) {
+            // first rep starts the timer
+            startedAt = now;
+            pausedAccum = 0;
+            pauseStartedAt = 0;
+          } else if (pauseStartedAt) {
+            // resume after pause on first rep
+            pausedAccum += now - pauseStartedAt;
+            pauseStartedAt = 0;
+          }
+          running = true;
+          repArmed = false;
+          if (startingFreshSet) beepGo(); // "set start" cue when work interval begins
+          statusEl.textContent = withSetPrefix(mode === "time" ? (durationMs > 0 ? "Running (countdown)" : "Running (stopwatch)") : "Running (reps)");
+        }
+
+        function finishSet(now) {
+          running = false;
+          repArmed = false;
+          beepDone();
+
+          // next set?
+          if (seriesTotal > 1 && seriesIndex + 1 < seriesTotal) {
+            seriesIndex += 1;
+
+            // reset per-set counters
+            reps = 0;
+            repsEl.textContent = "0";
+            phase = "—";
+            lastRepAt = now;
+            repTimes = [];
+            updateAdvancedUi(now, true);
+
+            // reset per-set timer state (next set starts on first rep)
+            startedAt = 0;
+            pausedAccum = 0;
+            pauseStartedAt = 0;
+
+            const pauseMs = readPauseSeconds();
+            if (pauseMs > 0) {
+              statusEl.textContent = withSetPrefix("Rest…");
+              beginCountdown("pause", pauseMs);
+            } else {
+              armForFirstRep("Waiting for first rep…");
+            }
+          } else {
+            timerEnded = true;
+            statusEl.textContent = "Done";
+            updateAdvancedUi(now, true);
+          }
+        }
+
+        function onRep(now) {
+          reps += 1;
+          lastRepAt = now;
+          repTimes.push(now);
+          repsEl.textContent = String(reps);
+          flashRepBorder();
+          beepRep(reps);
+          if (repArmed) startOrResumeTimerOnRep(now);
+          updatePrimaryDisplay(now);
+          updateAdvancedUi(now, true);
+
+          // Reps mode: end set after N reps
+          if (mode === "reps" && targetReps > 0 && reps >= targetReps && !timerEnded && !countdownKind) {
+            finishSet(now);
+          }
+        }
+
+        // ---- Advanced stats + graph ----
+        let lastAdvUiAt = 0;
+
+        function mean(values) {
+          if (!values || values.length === 0) return null;
+          const sum = values.reduce((a, b) => a + b, 0);
+          return sum / values.length;
+        }
+
+        function stddev(values) {
+          if (!values || values.length < 2) return null;
+          const m = mean(values);
+          if (m == null) return null;
+          const v = mean(values.map((x) => (x - m) * (x - m)));
+          if (v == null) return null;
+          return Math.sqrt(v);
+        }
+
+        function resizeAdvChart() {
+          if (!advChartEl) return;
+          const rect = advChartEl.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          const w = Math.max(1, Math.floor(rect.width * dpr));
+          const h = Math.max(1, Math.floor(rect.height * dpr));
+          if (advChartEl.width !== w || advChartEl.height !== h) {
+            advChartEl.width = w;
+            advChartEl.height = h;
+          }
+        }
+
+        function drawAdvChart(now) {
+          if (!advChartEl || !advChartCtx) return;
+          if (!advancedPanelEl?.open) return;
+
+          resizeAdvChart();
+          const ctx2 = advChartCtx;
+          const w = advChartEl.width;
+          const h = advChartEl.height;
+
+          ctx2.clearRect(0, 0, w, h);
+
+          // background
+          ctx2.fillStyle = "rgba(0,0,0,0.18)";
+          ctx2.fillRect(0, 0, w, h);
+
+          const padL = 34;
+          const padR = 10;
+          const padT = 10;
+          const padB = 22;
+          const iw = Math.max(1, w - padL - padR);
+          const ih = Math.max(1, h - padT - padB);
+
+          const hasData = repTimes.length > 0;
+          const t0 = hasData ? repTimes[0] : now;
+          const t1 = hasData ? Math.max(now, repTimes[repTimes.length - 1]) : now;
+          const tRange = Math.max(250, t1 - t0);
+          const yMax = Math.max(1, mode === "reps" ? Math.max(reps, targetReps || 1) : reps || 1);
+
+          function xOf(t) {
+            return padL + ((t - t0) / tRange) * iw;
+          }
+          function yOf(repN) {
+            const v = clamp(repN / yMax, 0, 1);
+            return padT + (1 - v) * ih;
+          }
+
+          // grid
+          ctx2.strokeStyle = "rgba(255,255,255,0.10)";
+          ctx2.lineWidth = 1;
+          ctx2.beginPath();
+          for (let i = 0; i <= 4; i++) {
+            const y = padT + (ih * i) / 4;
+            ctx2.moveTo(padL, y);
+            ctx2.lineTo(padL + iw, y);
+          }
+          ctx2.stroke();
+
+          // target line (reps mode)
+          if (mode === "reps" && targetReps > 0) {
+            ctx2.strokeStyle = "rgba(110,231,255,0.30)";
+            ctx2.setLineDash([5, 4]);
+            ctx2.beginPath();
+            ctx2.moveTo(padL, yOf(targetReps));
+            ctx2.lineTo(padL + iw, yOf(targetReps));
+            ctx2.stroke();
+            ctx2.setLineDash([]);
+          }
+
+          // cumulative reps line
+          ctx2.strokeStyle = "rgba(53,208,127,0.90)";
+          ctx2.lineWidth = 2;
+          ctx2.beginPath();
+          if (!hasData) {
+            ctx2.moveTo(padL, yOf(0));
+            ctx2.lineTo(padL + iw, yOf(0));
+          } else {
+            ctx2.moveTo(xOf(t0), yOf(0));
+            for (let i = 0; i < repTimes.length; i++) {
+              const t = repTimes[i];
+              const r = i + 1;
+              ctx2.lineTo(xOf(t), yOf(r));
+            }
+            // extend flat to "now"
+            ctx2.lineTo(xOf(t1), yOf(repTimes.length));
+          }
+          ctx2.stroke();
+
+          // labels
+          ctx2.fillStyle = "rgba(255,255,255,0.60)";
+          ctx2.font = `${Math.max(10, Math.floor((h / 120) * 11))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+          ctx2.textBaseline = "alphabetic";
+          ctx2.fillText(String(yMax), 6, yOf(yMax) + 4);
+          ctx2.fillText("0", 14, yOf(0) + 4);
+
+          const sec = Math.round(tRange / 1000);
+          ctx2.fillText(`${sec}s`, padL + iw - 28, h - 6);
+        }
+
+        function updateAdvancedUi(now, force = false) {
+          if (!advSummaryEl || !advPaceEl || !advActiveEl || !advAvgIntEl || !advLastIntEl || !advBestWorstEl || !advStdEl)
+            return;
+          if (!force && now - lastAdvUiAt < 250) return;
+          lastAdvUiAt = now;
+
+          if (repTimes.length === 0) {
+            advSummaryEl.textContent = "—";
+            advPaceEl.textContent = "—";
+            advActiveEl.textContent = "—";
+            advAvgIntEl.textContent = "—";
+            advLastIntEl.textContent = "—";
+            advBestWorstEl.textContent = "—";
+            advStdEl.textContent = "—";
+            drawAdvChart(now);
+            return;
+          }
+
+          const activeMs = Math.max(0, (repTimes[repTimes.length - 1] || now) - repTimes[0]);
+          const paceRpm = activeMs > 0 ? (repTimes.length / activeMs) * 60_000 : null;
+
+          /** @type {number[]} */
+          const intervals = [];
+          for (let i = 1; i < repTimes.length; i++) intervals.push(repTimes[i] - repTimes[i - 1]);
+
+          const avgInt = mean(intervals);
+          const lastInt = intervals.length > 0 ? intervals[intervals.length - 1] : null;
+          const bestInt = intervals.length > 0 ? Math.min(...intervals) : null;
+          const worstInt = intervals.length > 0 ? Math.max(...intervals) : null;
+          const sd = stddev(intervals);
+
+          advPaceEl.textContent = paceRpm != null ? `${paceRpm.toFixed(1)} rpm` : "—";
+          advActiveEl.textContent = formatTime(activeMs);
+          advAvgIntEl.textContent = avgInt != null ? formatSecondsFromMs(avgInt) : "—";
+          advLastIntEl.textContent = lastInt != null ? formatSecondsFromMs(lastInt) : "—";
+          advBestWorstEl.textContent =
+            bestInt != null && worstInt != null ? `${formatSecondsFromMs(bestInt)} / ${formatSecondsFromMs(worstInt)}` : "—";
+          advStdEl.textContent = sd != null ? formatSecondsFromMs(sd) : "—";
+
+          // Summary line (collapsed header)
+          const summaryParts = [];
+          if (paceRpm != null) summaryParts.push(`${paceRpm.toFixed(0)} rpm`);
+          summaryParts.push(`${repTimes.length} reps`);
+          advSummaryEl.textContent = summaryParts.join(" · ");
+
+          drawAdvChart(now);
         }
 
         function start() {
           ensureAudio(); // unlock audio on user gesture
-          if (!startedAt) startedAt = performance.now();
-          if (timerEnded) timerEnded = false;
-          if (!running) {
-            if (pauseStartedAt) {
-              pausedAccum += performance.now() - pauseStartedAt;
-              pauseStartedAt = 0;
-            }
-            running = true;
-            statusEl.textContent = durationMs > 0 ? "Running (countdown)" : "Running (stopwatch)";
+          if (timerEnded) return; // require Reset after done
+
+          // Initialize series on first Start of a workout
+          if (!seriesActive && !startedAt && !pauseStartedAt && reps === 0) {
+            readMode();
+            readTargetReps();
+            // series is meaningful for "time countdown" or "reps"; for stopwatch keep it 1
+            seriesTotal = mode === "time" && durationMs <= 0 ? 1 : readSeriesCount();
+            seriesIndex = 0;
+            seriesActive = seriesTotal > 1;
           }
+
+          // If a pause/prep countdown is running, Start acts as "skip"
+          if (countdownKind) {
+            endCountdown();
+            armForFirstRep(startedAt && pauseStartedAt ? "Resume on first rep…" : "Waiting for first rep…");
+            return;
+          }
+
+          beepStartSoft();
+
+          // If timer is running, do nothing
+          if (running) return;
+
+          // If currently paused (manual), arm to resume on first rep
+          if (startedAt && pauseStartedAt) {
+            armForFirstRep("Resume on first rep…");
+            return;
+          }
+
+          // Fresh start: optional timed pause, then arm (timer starts on first rep)
+          const pauseMs = readPauseSeconds();
+          if (pauseMs > 0) {
+            // fresh session arm: keep timer unstarted
+            repArmed = false;
+            running = false;
+            pauseStartedAt = 0;
+            pausedAccum = 0;
+            // don't overwrite startedAt here; it remains 0 until first rep
+            statusEl.textContent = "Pause…";
+            beginCountdown("prep", pauseMs);
+            return;
+          }
+
+          armForFirstRep("Waiting for first rep…");
         }
 
         function pause() {
-          if (!running) return;
-          running = false;
-          pauseStartedAt = performance.now();
-          statusEl.textContent = "Paused";
+          ensureAudio();
+          if (timerEnded) return;
+
+          // If already in countdown, Pause acts as "skip"
+          if (countdownKind) {
+            endCountdown();
+            armForFirstRep(startedAt && pauseStartedAt ? "Resume on first rep…" : "Waiting for first rep…");
+            return;
+          }
+
+          // Timed pause: pause timer (if running) then countdown; resume on first rep
+          if (running) {
+            running = false;
+            pauseStartedAt = performance.now();
+          }
+
+          const pauseMs = readPauseSeconds();
+          if (pauseMs <= 0) {
+            statusEl.textContent = "Paused";
+            return;
+          }
+
+          statusEl.textContent = "Pause…";
+          beginCountdown("pause", pauseMs);
         }
 
         function hardReset() {
@@ -728,10 +1464,7 @@
             if (knee > upTh) {
               // Count at full extension (coming back up)
               if (now - lastRepAt > 350) {
-                reps += 1;
-                lastRepAt = now;
-                repsEl.textContent = String(reps);
-                beepRep();
+                onRep(now);
               }
               phase = "up";
             }
@@ -766,10 +1499,7 @@
           } else if (phase === "down") {
             if (elbow > upTh) {
               if (now - lastRepAt > 350) {
-                reps += 1;
-                lastRepAt = now;
-                repsEl.textContent = String(reps);
-                beepRep();
+                onRep(now);
               }
               phase = "up";
             }
@@ -805,10 +1535,7 @@
             // transition to top => count rep
             if (elbow < topTh) {
               if (now - lastRepAt > 450) {
-                reps += 1;
-                lastRepAt = now;
-                repsEl.textContent = String(reps);
-                beepRep();
+                onRep(now);
               }
               phase = "up";
             }
@@ -887,13 +1614,41 @@
         function tickUi() {
           const now = performance.now();
           const shown = getDisplayedMs(now);
-          timeEl.textContent = formatTime(shown);
+          updatePrimaryDisplay(now);
+          updateAdvancedUi(now, false);
 
-          if (running && durationMs > 0 && shown <= 0 && !timerEnded) {
-            timerEnded = true;
-            running = false;
-            statusEl.textContent = "Done";
-            beepDone();
+          // Timed pause / prep countdown UX
+          if (countdownKind) {
+            const kind = countdownKind;
+            const remaining = countdownEndsAt - now;
+            const remainingClamped = Math.max(0, remaining);
+
+            const halfAt = countdownEndsAt - countdownTotalMs / 2;
+            if (!countdownHalfBeeped && now >= halfAt) {
+              countdownHalfBeeped = true;
+              beepHalf();
+            }
+            if (!countdownTenBeeped && remaining <= 10_000 && remaining > 0) {
+              countdownTenBeeped = true;
+              beepTen();
+            }
+            const secLeft = Math.ceil(remaining / 1000);
+            if (remaining > 0 && secLeft <= 3 && secLeft >= 1 && !countdownLastBeeped.has(secLeft)) {
+              countdownLastBeeped.add(secLeft);
+              beepCount3();
+            }
+
+            showPauseBox("Pause", remainingClamped, kind === "prep" ? "Get ready…" : "Rest…");
+
+            if (remaining <= 0) {
+              endCountdown();
+              armForFirstRep(kind === "pause" && startedAt && pauseStartedAt ? "Resume on first rep…" : "Waiting for first rep…");
+            }
+          }
+
+          // Time mode: end set when countdown hits 0
+          if (mode === "time" && running && durationMs > 0 && shown <= 0 && !timerEnded) {
+            finishSet(now);
           }
 
           updatePhaseUi();
@@ -903,7 +1658,9 @@
         // ---- MediaPipe Pose setup ----
         async function main() {
           setHint("Starting…", "Initializing MediaPipe and requesting webcam permission.", true);
+          updateModeUi();
           readDuration();
+          readTargetReps();
           resetSession();
 
           // If not in secure context, webcam will likely fail (except localhost in some browsers).
@@ -943,8 +1700,11 @@
 
             drawFrame(results.image, results);
 
-            // Rep counting only when session is running
-            if (!running) return;
+            // Rep counting: run while active OR armed (waiting for first rep),
+            // but never during the pause/prep countdown.
+            if (timerEnded) return;
+            if (countdownKind) return;
+            if (!running && !repArmed) return;
             if (!hasPose) return;
 
             if (exerciseEl.value === "squats") updateSquatCounter(results.poseLandmarks, now);
@@ -990,8 +1750,26 @@
             const wasRunning = running;
             readDuration();
             // preserve running state; just update display
-            if (!startedAt) timeEl.textContent = formatTime(durationMs);
+            if (!startedAt) updatePrimaryDisplay(performance.now());
             statusEl.textContent = wasRunning ? statusEl.textContent : "Ready";
+          });
+
+          pauseSecondsEl?.addEventListener("change", () => {
+            // normalize value
+            readPauseSeconds();
+          });
+
+          seriesEl?.addEventListener("change", () => {
+            // normalize value
+            readSeriesCount();
+          });
+
+          modeEl?.addEventListener("change", () => {
+            updateModeUi();
+          });
+
+          targetRepsEl?.addEventListener("change", () => {
+            readTargetReps();
           });
 
           exerciseEl.addEventListener("change", () => {
@@ -999,8 +1777,10 @@
             reps = 0;
             phase = "—";
             lastRepAt = 0;
+            repTimes = [];
             repsEl.textContent = "0";
             phaseEl.textContent = "Phase: —";
+            updateAdvancedUi(performance.now(), true);
           });
 
           mirrorEl.addEventListener("change", () => {
@@ -1011,6 +1791,11 @@
 
           window.addEventListener("resize", resizeCanvasToViewport);
           resizeCanvasToViewport();
+          window.addEventListener("resize", () => updateAdvancedUi(performance.now(), true));
+          advancedPanelEl?.addEventListener("toggle", () => {
+            // Allow layout to settle before measuring canvas
+            window.setTimeout(() => updateAdvancedUi(performance.now(), true), 0);
+          });
           requestAnimationFrame(tickUi);
         }
 
