@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Reps Count</title>
+    <style>
+      :root {
+        --bg: #050712;
+        --panel: rgba(14, 18, 32, 0.46);
+        --panel2: rgba(14, 18, 32, 0.28);
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.68);
+        --danger: #ff4d4d;
+        --accent: #6ee7ff;
+        --ok: #35d07f;
+        --shadow: 0 16px 50px rgba(0, 0, 0, 0.55);
+        --shadow2: 0 2px 0 rgba(255, 255, 255, 0.06) inset, 0 -1px 0 rgba(0, 0, 0, 0.25) inset;
+        --border: rgba(255, 255, 255, 0.18);
+        --border2: rgba(255, 255, 255, 0.28);
+        --blur: 18px;
+        --radius: 16px;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background:
+          radial-gradient(1200px circle at 15% 10%, rgba(110, 231, 255, 0.10), transparent 60%),
+          radial-gradient(900px circle at 90% 20%, rgba(168, 85, 247, 0.10), transparent 55%),
+          radial-gradient(700px circle at 45% 92%, rgba(53, 208, 127, 0.08), transparent 60%),
+          linear-gradient(180deg, rgba(4, 6, 14, 1), rgba(5, 7, 18, 1));
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+        overflow: hidden;
+      }
+
+      /* Fullscreen camera stage */
+      .stage {
+        position: fixed;
+        inset: 0;
+        background: #000;
+      }
+      .stage::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        /* subtle neon + vignette so glass reads over video */
+        background:
+          radial-gradient(1200px circle at 20% 10%, rgba(110, 231, 255, 0.18), transparent 58%),
+          radial-gradient(900px circle at 85% 22%, rgba(168, 85, 247, 0.16), transparent 58%),
+          radial-gradient(700px circle at 45% 95%, rgba(53, 208, 127, 0.12), transparent 62%),
+          linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.40));
+        z-index: 2;
+      }
+      #video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1); /* mirror for user-friendly view */
+        visibility: hidden; /* we draw to canvas */
+      }
+      #output {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+      }
+
+      /* Overlay UI */
+      .hud {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
+          max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 12px;
+        z-index: 3;
+      }
+      .topbar {
+        pointer-events: auto;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: start;
+      }
+      .card {
+        position: relative;
+        overflow: hidden;
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04)),
+          var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow), var(--shadow2);
+        backdrop-filter: blur(var(--blur)) saturate(140%);
+        -webkit-backdrop-filter: blur(var(--blur)) saturate(140%);
+      }
+      .card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          radial-gradient(900px circle at 18% 0%, rgba(255, 255, 255, 0.20), transparent 55%),
+          radial-gradient(700px circle at 85% 120%, rgba(255, 255, 255, 0.10), transparent 60%);
+        opacity: 0.85;
+      }
+      .card > * { position: relative; }
+      .controls {
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+        min-width: min(520px, 100%);
+      }
+      .brand {
+        padding: 12px;
+        display: grid;
+        gap: 6px;
+        align-content: start;
+      }
+      .brand h1 {
+        margin: 0;
+        font-size: 16px;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .pill {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02)),
+          var(--panel2);
+        color: var(--muted);
+      }
+      .brand p {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.35;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      label {
+        display: grid;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      select, input {
+        appearance: none;
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02)),
+          rgba(0, 0, 0, 0.28);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 12px;
+        padding: 10px 10px;
+        outline: none;
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+        backdrop-filter: blur(12px) saturate(140%);
+        -webkit-backdrop-filter: blur(12px) saturate(140%);
+      }
+      select:focus-visible, input:focus-visible {
+        border-color: rgba(110, 231, 255, 0.55);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.06) inset,
+          0 0 0 3px rgba(110, 231, 255, 0.18);
+      }
+      input[type="number"] { width: 100%; }
+
+      .stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .stat {
+        padding: 10px 12px;
+        display: grid;
+        gap: 2px;
+      }
+      .stat .k {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .stat .v {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+      }
+      .mini {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+      }
+      button {
+        pointer-events: auto;
+        border: 1px solid var(--border);
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02)),
+          rgba(0, 0, 0, 0.25);
+        color: var(--text);
+        border-radius: 14px;
+        padding: 10px 12px;
+        font-weight: 650;
+        cursor: pointer;
+        backdrop-filter: blur(14px) saturate(140%);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+        transition: transform 0.06s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      button:hover {
+        border-color: var(--border2);
+        box-shadow: 0 14px 38px rgba(0, 0, 0, 0.42), 0 1px 0 rgba(255, 255, 255, 0.07) inset;
+      }
+      button:active { transform: translateY(1px); }
+      button:focus-visible {
+        outline: none;
+        border-color: rgba(110, 231, 255, 0.55);
+        box-shadow:
+          0 14px 38px rgba(0, 0, 0, 0.42),
+          0 0 0 3px rgba(110, 231, 255, 0.18);
+      }
+      button.primary {
+        border-color: rgba(110, 231, 255, 0.35);
+        background:
+          linear-gradient(135deg, rgba(110, 231, 255, 0.26), rgba(110, 231, 255, 0.08)),
+          rgba(0, 0, 0, 0.18);
+      }
+      button.danger {
+        border-color: rgba(255, 77, 77, 0.35);
+        background:
+          linear-gradient(135deg, rgba(255, 77, 77, 0.22), rgba(255, 77, 77, 0.06)),
+          rgba(0, 0, 0, 0.18);
+      }
+      button.ghost {
+        border-color: rgba(255, 255, 255, 0.22);
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.02)),
+          rgba(0, 0, 0, 0.18);
+        color: rgba(255, 255, 255, 0.86);
+        font-weight: 600;
+      }
+
+      .footer {
+        pointer-events: auto;
+        display: grid;
+        grid-template-columns: 1fr;
+        justify-items: end;
+        align-items: end;
+        gap: 10px;
+      }
+      .toggles {
+        padding: 10px 12px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: flex-end;
+      }
+      .toggle {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted);
+        user-select: none;
+      }
+      .toggle input { width: 16px; height: 16px; }
+
+      .badge {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.25);
+      }
+      .dot.ok { background: var(--ok); }
+      .dot.bad { background: var(--danger); }
+
+      .centerHint {
+        pointer-events: none;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        max-width: min(520px, 92vw);
+        padding: 14px 16px;
+        display: none;
+        z-index: 4;
+      }
+      .centerHint strong { display: block; margin-bottom: 6px; }
+      .centerHint .small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+
+      @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+        .card {
+          background: rgba(15, 18, 30, 0.92);
+        }
+        button, select, input {
+          background: rgba(0, 0, 0, 0.52);
+        }
+      }
+
+      /* Mobile/short screens: ultra-compact HUD (camera-first).
+         Default occupies ~<10% of the screen; "Settings" expands when needed. */
+      @media (max-width: 720px), (max-height: 680px) {
+        .hud {
+          padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+            max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+          gap: 8px;
+        }
+
+        /* Hide non-essential panels by default */
+        .brand { display: none; }
+        .footer { display: none; }
+
+        .topbar { grid-template-columns: 1fr; }
+
+        /* Turn controls into a single slim dock */
+        .controls {
+          min-width: 0;
+          padding: 8px;
+          gap: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          max-height: 10vh;
+        }
+
+        .row { display: none; }
+        .mini { display: none; }
+
+        .stats {
+          display: flex;
+          gap: 8px;
+          grid-template-columns: none;
+        }
+        .stat { padding: 6px 8px; }
+        .stat .k { display: none; }
+        .stat .v { font-size: 18px; line-height: 1; }
+
+        .buttons {
+          display: flex;
+          gap: 6px;
+          grid-template-columns: none;
+        }
+        button {
+          padding: 7px 8px;
+          border-radius: 12px;
+          font-size: 12px;
+          line-height: 1;
+        }
+
+        /* Center hint smaller on mobile */
+        .centerHint { max-width: min(420px, 92vw); padding: 10px 12px; }
+        .centerHint strong { font-size: 13px; }
+        .centerHint .small { font-size: 11px; }
+
+        /* Settings button only needed on mobile */
+        #uiToggle { display: inline-flex; }
+
+        /* Expanded mode (tap "Settings") */
+        body.uiExpanded .footer { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        body.uiExpanded .controls {
+          display: grid;
+          max-height: 42vh; /* still prevents covering most of the camera feed */
+          overflow: auto;
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
+        }
+        body.uiExpanded .row { display: grid; }
+        body.uiExpanded .stats { display: grid; grid-template-columns: 1fr 1fr; }
+        body.uiExpanded .stat .k { display: block; }
+        body.uiExpanded .mini { display: block; }
+        body.uiExpanded .buttons { display: grid; grid-template-columns: 1fr 1fr; }
+        body.uiExpanded #uiToggle { grid-column: 1 / -1; }
+      }
+
+      /* Very narrow phones: stack the select + timer */
+      @media (max-width: 420px) {
+        .row { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage" aria-label="Camera stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="output"></canvas>
+
+      <div class="hud">
+        <div class="topbar">
+          <div class="card brand">
+            <h1>
+              Reps Count
+              <span class="pill">MediaPipe Pose</span>
+              <span class="badge" title="Pose tracking confidence">
+                <span id="trackDot" class="dot"></span>
+                <span id="trackText">Waiting…</span>
+              </span>
+            </h1>
+            <p>
+              Choose an exercise, hit Start, and perform reps in front of the camera.
+              UI stays over the camera feed (full screen).
+            </p>
+          </div>
+
+          <div class="card controls">
+            <div class="row">
+              <label>
+                Exercise
+                <select id="exercise">
+                  <option value="squats">Squats</option>
+                  <option value="pushups">Push-ups</option>
+                  <option value="pullups">Pull-ups</option>
+                </select>
+              </label>
+              <label>
+                Timer (seconds, 0 = stopwatch)
+                <input id="duration" type="number" min="0" step="5" value="60" />
+              </label>
+            </div>
+
+            <div class="stats">
+              <div class="card stat">
+                <div class="k">Reps</div>
+                <div id="reps" class="v">0</div>
+                <div id="phase" class="mini">Phase: —</div>
+              </div>
+              <div class="card stat">
+                <div class="k">Time</div>
+                <div id="time" class="v">01:00</div>
+                <div id="status" class="mini">Ready</div>
+              </div>
+            </div>
+
+            <div class="buttons">
+              <button id="start" class="primary" type="button">Start</button>
+              <button id="pause" type="button">Pause</button>
+              <button id="reset" class="danger" type="button">Reset</button>
+              <button id="uiToggle" class="ghost" type="button" aria-expanded="false">Settings</button>
+            </div>
+          </div>
+        </div>
+
+        <div></div>
+
+        <div class="footer">
+          <div class="card toggles">
+            <label class="toggle">
+              <input id="draw" type="checkbox" checked />
+              Draw skeleton
+            </label>
+            <label class="toggle">
+              <input id="sound" type="checkbox" checked />
+              Sound
+            </label>
+            <label class="toggle">
+              <input id="mirror" type="checkbox" checked />
+              Mirror
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div id="centerHint" class="card centerHint">
+        <strong id="centerHintTitle">Camera permission needed</strong>
+        <div id="centerHintBody" class="small"></div>
+      </div>
+    </div>
+
+    <!-- MediaPipe (UMD) -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+    <script>
+      (function () {
+        /** @type {HTMLVideoElement} */
+        const videoEl = document.getElementById("video");
+        /** @type {HTMLCanvasElement} */
+        const canvasEl = document.getElementById("output");
+        const ctx = canvasEl.getContext("2d", { alpha: false });
+
+        const exerciseEl = document.getElementById("exercise");
+        const durationEl = document.getElementById("duration");
+        const repsEl = document.getElementById("reps");
+        const timeEl = document.getElementById("time");
+        const statusEl = document.getElementById("status");
+        const phaseEl = document.getElementById("phase");
+        const startBtn = document.getElementById("start");
+        const pauseBtn = document.getElementById("pause");
+        const resetBtn = document.getElementById("reset");
+        const uiToggleBtn = document.getElementById("uiToggle");
+        const drawEl = document.getElementById("draw");
+        const soundEl = document.getElementById("sound");
+        const mirrorEl = document.getElementById("mirror");
+        const trackDot = document.getElementById("trackDot");
+        const trackText = document.getElementById("trackText");
+        const centerHint = document.getElementById("centerHint");
+        const centerHintTitle = document.getElementById("centerHintTitle");
+        const centerHintBody = document.getElementById("centerHintBody");
+
+        const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+
+        function setHint(title, body, show) {
+          centerHintTitle.textContent = title;
+          centerHintBody.textContent = body;
+          centerHint.style.display = show ? "block" : "none";
+        }
+
+        function setTracking(ok, msg) {
+          trackDot.classList.toggle("ok", !!ok);
+          trackDot.classList.toggle("bad", ok === false);
+          trackText.textContent = msg;
+        }
+
+        function formatTime(ms) {
+          const s = Math.max(0, Math.floor(ms / 1000));
+          const mm = String(Math.floor(s / 60)).padStart(2, "0");
+          const ss = String(s % 60).padStart(2, "0");
+          return `${mm}:${ss}`;
+        }
+
+        // ---- Audio (rep sounds, timer beep) ----
+        /** @type {AudioContext | null} */
+        let audioCtx = null;
+
+        function ensureAudio() {
+          if (!soundEl?.checked) return null;
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          if (!Ctx) return null;
+          if (!audioCtx) audioCtx = new Ctx();
+          if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+          return audioCtx;
+        }
+
+        function beep({ freq = 880, ms = 70, gain = 0.08 } = {}) {
+          if (!soundEl?.checked) return;
+          const ac = ensureAudio();
+          if (!ac) return;
+
+          const t0 = ac.currentTime;
+          const t1 = t0 + ms / 1000;
+
+          const o = ac.createOscillator();
+          const g = ac.createGain();
+          o.type = "sine";
+          o.frequency.setValueAtTime(freq, t0);
+
+          // soft click-less envelope
+          g.gain.setValueAtTime(0.0001, t0);
+          g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
+          g.gain.exponentialRampToValueAtTime(0.0001, t1);
+
+          o.connect(g).connect(ac.destination);
+          o.start(t0);
+          o.stop(t1 + 0.02);
+        }
+
+        function beepRep() {
+          // short, slightly higher pitch
+          beep({ freq: 1046.5, ms: 55, gain: 0.07 });
+        }
+
+        function beepDone() {
+          beep({ freq: 880, ms: 120, gain: 0.08 });
+        }
+
+        // ---- Session state ----
+        let running = false;
+        let reps = 0;
+        let phase = "—"; // up / down / —
+        let lastRepAt = 0;
+
+        // Timer: countdown if duration > 0, else stopwatch
+        let durationMs = 60_000;
+        let startedAt = 0;
+        let pausedAccum = 0;
+        let pauseStartedAt = 0;
+        let timerEnded = false;
+
+        function getElapsedMs(now) {
+          if (!startedAt) return 0;
+          if (running) return now - startedAt - pausedAccum;
+          if (pauseStartedAt) return pauseStartedAt - startedAt - pausedAccum;
+          return now - startedAt - pausedAccum;
+        }
+
+        function getDisplayedMs(now) {
+          const elapsed = getElapsedMs(now);
+          if (durationMs > 0) return Math.max(0, durationMs - elapsed);
+          return elapsed;
+        }
+
+        function resetSession() {
+          running = false;
+          reps = 0;
+          phase = "—";
+          lastRepAt = 0;
+          startedAt = 0;
+          pausedAccum = 0;
+          pauseStartedAt = 0;
+          timerEnded = false;
+          repsEl.textContent = "0";
+          phaseEl.textContent = "Phase: —";
+          statusEl.textContent = "Ready";
+          const now = performance.now();
+          timeEl.textContent = formatTime(getDisplayedMs(now));
+        }
+
+        function readDuration() {
+          const raw = Number(durationEl.value);
+          const sec = Number.isFinite(raw) ? clamp(raw, 0, 60 * 60) : 60;
+          durationEl.value = String(sec);
+          durationMs = sec * 1000;
+          const now = performance.now();
+          timeEl.textContent = formatTime(getDisplayedMs(now));
+        }
+
+        function start() {
+          ensureAudio(); // unlock audio on user gesture
+          if (!startedAt) startedAt = performance.now();
+          if (timerEnded) timerEnded = false;
+          if (!running) {
+            if (pauseStartedAt) {
+              pausedAccum += performance.now() - pauseStartedAt;
+              pauseStartedAt = 0;
+            }
+            running = true;
+            statusEl.textContent = durationMs > 0 ? "Running (countdown)" : "Running (stopwatch)";
+          }
+        }
+
+        function pause() {
+          if (!running) return;
+          running = false;
+          pauseStartedAt = performance.now();
+          statusEl.textContent = "Paused";
+        }
+
+        function hardReset() {
+          readDuration();
+          resetSession();
+        }
+
+        // ---- Rep logic helpers ----
+        function getPoint(landmarks, idx) {
+          const p = landmarks?.[idx];
+          if (!p) return null;
+          if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
+          return p;
+        }
+
+        function angleDeg(a, b, c) {
+          // angle ABC (at b)
+          const abx = a.x - b.x;
+          const aby = a.y - b.y;
+          const cbx = c.x - b.x;
+          const cby = c.y - b.y;
+          const abLen = Math.hypot(abx, aby);
+          const cbLen = Math.hypot(cbx, cby);
+          if (abLen < 1e-6 || cbLen < 1e-6) return null;
+          const dot = abx * cbx + aby * cby;
+          const cos = clamp(dot / (abLen * cbLen), -1, 1);
+          return (Math.acos(cos) * 180) / Math.PI;
+        }
+
+        function avgOrNull(values) {
+          const good = values.filter((v) => typeof v === "number" && Number.isFinite(v));
+          if (good.length === 0) return null;
+          return good.reduce((a, b) => a + b, 0) / good.length;
+        }
+
+        function updateSquatCounter(landmarks, now) {
+          // indices from MediaPipe Pose
+          // left: hip 23, knee 25, ankle 27
+          // right: hip 24, knee 26, ankle 28
+          const lHip = getPoint(landmarks, 23);
+          const lKnee = getPoint(landmarks, 25);
+          const lAnk = getPoint(landmarks, 27);
+          const rHip = getPoint(landmarks, 24);
+          const rKnee = getPoint(landmarks, 26);
+          const rAnk = getPoint(landmarks, 28);
+          if (!lHip || !lKnee || !lAnk || !rHip || !rKnee || !rAnk) return;
+
+          const l = angleDeg(lHip, lKnee, lAnk);
+          const r = angleDeg(rHip, rKnee, rAnk);
+          const knee = avgOrNull([l, r]);
+          if (knee == null) return;
+
+          // Thresholds (tuneable):
+          // up: >160°, down: <95°
+          const upTh = 160;
+          const downTh = 95;
+
+          if (phase === "—") {
+            phase = knee > upTh ? "up" : knee < downTh ? "down" : "up";
+          } else if (phase === "up") {
+            if (knee < downTh) phase = "down";
+          } else if (phase === "down") {
+            if (knee > upTh) {
+              // Count at full extension (coming back up)
+              if (now - lastRepAt > 350) {
+                reps += 1;
+                lastRepAt = now;
+                repsEl.textContent = String(reps);
+                beepRep();
+              }
+              phase = "up";
+            }
+          }
+        }
+
+        function updatePushupCounter(landmarks, now) {
+          // left: shoulder 11, elbow 13, wrist 15
+          // right: shoulder 12, elbow 14, wrist 16
+          const ls = getPoint(landmarks, 11);
+          const le = getPoint(landmarks, 13);
+          const lw = getPoint(landmarks, 15);
+          const rs = getPoint(landmarks, 12);
+          const re = getPoint(landmarks, 14);
+          const rw = getPoint(landmarks, 16);
+          if (!ls || !le || !lw || !rs || !re || !rw) return;
+
+          const la = angleDeg(ls, le, lw);
+          const ra = angleDeg(rs, re, rw);
+          const elbow = avgOrNull([la, ra]);
+          if (elbow == null) return;
+
+          // Thresholds:
+          // up: >165°, down: <95°
+          const upTh = 165;
+          const downTh = 95;
+
+          if (phase === "—") {
+            phase = elbow > upTh ? "up" : elbow < downTh ? "down" : "up";
+          } else if (phase === "up") {
+            if (elbow < downTh) phase = "down";
+          } else if (phase === "down") {
+            if (elbow > upTh) {
+              if (now - lastRepAt > 350) {
+                reps += 1;
+                lastRepAt = now;
+                repsEl.textContent = String(reps);
+                beepRep();
+              }
+              phase = "up";
+            }
+          }
+        }
+
+        function updatePullupCounter(landmarks, now) {
+          // Use elbow flexion/extension similar to push-ups, but count when reaching the "top" (flexed elbows)
+          // left: shoulder 11, elbow 13, wrist 15
+          // right: shoulder 12, elbow 14, wrist 16
+          const ls = getPoint(landmarks, 11);
+          const le = getPoint(landmarks, 13);
+          const lw = getPoint(landmarks, 15);
+          const rs = getPoint(landmarks, 12);
+          const re = getPoint(landmarks, 14);
+          const rw = getPoint(landmarks, 16);
+          if (!ls || !le || !lw || !rs || !re || !rw) return;
+
+          const la = angleDeg(ls, le, lw);
+          const ra = angleDeg(rs, re, rw);
+          const elbow = avgOrNull([la, ra]);
+          if (elbow == null) return;
+
+          // Thresholds (tuneable):
+          // bottom (arms extended): >160°
+          // top (pulled up): <85°
+          const bottomTh = 160;
+          const topTh = 85;
+
+          if (phase === "—") {
+            phase = elbow > bottomTh ? "down" : elbow < topTh ? "up" : "down";
+          } else if (phase === "down") {
+            // transition to top => count rep
+            if (elbow < topTh) {
+              if (now - lastRepAt > 450) {
+                reps += 1;
+                lastRepAt = now;
+                repsEl.textContent = String(reps);
+                beepRep();
+              }
+              phase = "up";
+            }
+          } else if (phase === "up") {
+            // must return to bottom before next rep
+            if (elbow > bottomTh) phase = "down";
+          }
+        }
+
+        function updatePhaseUi() {
+          phaseEl.textContent = `Phase: ${phase === "—" ? "—" : phase}`;
+        }
+
+        // ---- Canvas sizing & drawing ----
+        function resizeCanvasToViewport() {
+          const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+          const w = Math.floor(window.innerWidth * dpr);
+          const h = Math.floor(window.innerHeight * dpr);
+          if (canvasEl.width !== w || canvasEl.height !== h) {
+            canvasEl.width = w;
+            canvasEl.height = h;
+          }
+        }
+
+        function drawFrame(image, results) {
+          resizeCanvasToViewport();
+          const w = canvasEl.width;
+          const h = canvasEl.height;
+
+          // draw camera frame to cover canvas
+          ctx.save();
+          ctx.clearRect(0, 0, w, h);
+
+          const mirror = !!mirrorEl.checked;
+          if (mirror) {
+            ctx.translate(w, 0);
+            ctx.scale(-1, 1);
+          }
+
+          // image is video frame with natural size; draw it cover-style
+          const srcW = image.videoWidth || image.width;
+          const srcH = image.videoHeight || image.height;
+          let drawW = w;
+          let drawH = h;
+          let dx = 0;
+          let dy = 0;
+          if (srcW && srcH) {
+            const scale = Math.max(w / srcW, h / srcH);
+            drawW = srcW * scale;
+            drawH = srcH * scale;
+            dx = (w - drawW) / 2;
+            dy = (h - drawH) / 2;
+            ctx.drawImage(image, dx, dy, drawW, drawH);
+          } else {
+            // fallback
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, w, h);
+          }
+
+          if (drawEl.checked && results.poseLandmarks) {
+            // MediaPipe landmarks are normalized to the *source frame*.
+            // Since we draw the camera using "cover" (cropping), we remap landmarks to match.
+            const adjusted = results.poseLandmarks.map((lm) => ({
+              ...lm,
+              x: (dx + lm.x * drawW) / w,
+              y: (dy + lm.y * drawH) / h,
+            }));
+            drawConnectors(ctx, adjusted, POSE_CONNECTIONS, { color: "rgba(110,231,255,0.9)", lineWidth: 3 });
+            drawLandmarks(ctx, adjusted, { color: "rgba(53,208,127,0.9)", lineWidth: 2, radius: 3 });
+          }
+
+          ctx.restore();
+        }
+
+        // ---- Main loop UI ----
+        function tickUi() {
+          const now = performance.now();
+          const shown = getDisplayedMs(now);
+          timeEl.textContent = formatTime(shown);
+
+          if (running && durationMs > 0 && shown <= 0 && !timerEnded) {
+            timerEnded = true;
+            running = false;
+            statusEl.textContent = "Done";
+            beepDone();
+          }
+
+          updatePhaseUi();
+          requestAnimationFrame(tickUi);
+        }
+
+        // ---- MediaPipe Pose setup ----
+        async function main() {
+          setHint("Starting…", "Initializing MediaPipe and requesting webcam permission.", true);
+          readDuration();
+          resetSession();
+
+          // If not in secure context, webcam will likely fail (except localhost in some browsers).
+          if (!window.isSecureContext) {
+            setHint(
+              "Secure context required",
+              "Open this page via https:// or http://localhost using a local server (file:// usually blocks camera).",
+              true
+            );
+          }
+
+          const pose = new Pose({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+          });
+          pose.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+          });
+
+          pose.onResults((results) => {
+            const now = performance.now();
+
+            const hasPose = !!results.poseLandmarks && results.poseLandmarks.length > 0;
+            if (hasPose) {
+              setTracking(true, "Tracking");
+              setHint("", "", false);
+            } else {
+              setTracking(false, "No pose");
+              // keep hint subtle (only when running)
+              if (running) {
+                setHint("No pose detected", "Step back so the camera can see you.", true);
+              }
+            }
+
+            drawFrame(results.image, results);
+
+            // Rep counting only when session is running
+            if (!running) return;
+            if (!hasPose) return;
+
+            if (exerciseEl.value === "squats") updateSquatCounter(results.poseLandmarks, now);
+            if (exerciseEl.value === "pushups") updatePushupCounter(results.poseLandmarks, now);
+            if (exerciseEl.value === "pullups") updatePullupCounter(results.poseLandmarks, now);
+          });
+
+          // Camera helper uses getUserMedia; attach to the hidden video
+          const camera = new Camera(videoEl, {
+            onFrame: async () => {
+              await pose.send({ image: videoEl });
+            },
+            width: 1280,
+            height: 720,
+          });
+
+          try {
+            await camera.start();
+            setHint("", "", false);
+            setTracking(null, "Waiting…");
+          } catch (err) {
+            console.error(err);
+            setTracking(false, "Camera blocked");
+            setHint(
+              "Camera permission needed",
+              "Please allow webcam access in your browser permissions and reload the page.",
+              true
+            );
+          }
+
+          // UI hooks
+          startBtn.addEventListener("click", () => start());
+          pauseBtn.addEventListener("click", () => pause());
+          resetBtn.addEventListener("click", () => hardReset());
+          uiToggleBtn?.addEventListener("click", () => {
+            const next = !document.body.classList.contains("uiExpanded");
+            document.body.classList.toggle("uiExpanded", next);
+            uiToggleBtn.setAttribute("aria-expanded", next ? "true" : "false");
+            uiToggleBtn.textContent = next ? "Close" : "Settings";
+          });
+
+          durationEl.addEventListener("change", () => {
+            const wasRunning = running;
+            readDuration();
+            // preserve running state; just update display
+            if (!startedAt) timeEl.textContent = formatTime(durationMs);
+            statusEl.textContent = wasRunning ? statusEl.textContent : "Ready";
+          });
+
+          exerciseEl.addEventListener("change", () => {
+            // switch exercise: keep timer, reset reps/phase
+            reps = 0;
+            phase = "—";
+            lastRepAt = 0;
+            repsEl.textContent = "0";
+            phaseEl.textContent = "Phase: —";
+          });
+
+          mirrorEl.addEventListener("change", () => {
+            // keep video mirrored for consistency (canvas does the mirroring)
+            videoEl.style.transform = mirrorEl.checked ? "scaleX(-1)" : "none";
+          });
+          videoEl.style.transform = mirrorEl.checked ? "scaleX(-1)" : "none";
+
+          window.addEventListener("resize", resizeCanvasToViewport);
+          resizeCanvasToViewport();
+          requestAnimationFrame(tickUi);
+        }
+
+        main();
+      })();
+    </script>
+  </body>
+</html>
+
