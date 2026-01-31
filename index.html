@@ -1594,6 +1594,43 @@
           return good.reduce((a, b) => a + b, 0) / good.length;
         }
 
+        function isHandstandPosition(landmarks) {
+          // Heuristic: in a true handstand (camera upright), we expect:
+          // ankles above hips above shoulders above wrists (y increases downward),
+          // plus a minimum vertical span.
+          const lw = getPoint(landmarks, 15);
+          const rw = getPoint(landmarks, 16);
+          const ls = getPoint(landmarks, 11);
+          const rs = getPoint(landmarks, 12);
+          const lh = getPoint(landmarks, 23);
+          const rh = getPoint(landmarks, 24);
+          const la = getPoint(landmarks, 27);
+          const ra = getPoint(landmarks, 28);
+          const nose = getPoint(landmarks, 0);
+
+          const wristY = avgOrNull([lw?.y, rw?.y]);
+          const shoulderY = avgOrNull([ls?.y, rs?.y]);
+          const hipY = avgOrNull([lh?.y, rh?.y]);
+          const ankleY = avgOrNull([la?.y, ra?.y]);
+          if (wristY == null || shoulderY == null || hipY == null || ankleY == null) return false;
+
+          // Must look vertically inverted (with small margins to reduce jitter)
+          if (!(ankleY + 0.02 < hipY && hipY + 0.02 < shoulderY && shoulderY + 0.015 < wristY)) return false;
+
+          // Body should occupy a decent vertical span (filters out weird partial detections)
+          if (wristY - ankleY < 0.35) return false;
+
+          // Optional: head should be below hips (true for inverted posture)
+          if (nose && Number.isFinite(nose.y) && !(nose.y > hipY + 0.01)) return false;
+
+          // Optional: wrists roughly under shoulders (avoid classifying a forward-lean pose as handstand)
+          const wristX = avgOrNull([lw?.x, rw?.x]);
+          const shoulderX = avgOrNull([ls?.x, rs?.x]);
+          if (wristX != null && shoulderX != null && Math.abs(wristX - shoulderX) > 0.28) return false;
+
+          return true;
+        }
+
         function updateSquatCounter(landmarks, now) {
           // indices from MediaPipe Pose
           // left: hip 23, knee 25, ankle 27
@@ -1670,6 +1707,14 @@
           // Handstand push-ups (and similar "squat with hands" variants):
           // - Primary: elbow flexion/extension (looser thresholds than standard push-ups)
           // - Fallback: head (nose) vertical movement auto-calibrated per set
+
+          // Hard gate: only count while the user is actually in a handstand-like inverted posture.
+          if (!isHandstandPosition(landmarks)) {
+            phase = "—";
+            hspuHeadMin = null;
+            hspuHeadMax = null;
+            return;
+          }
 
           // elbow points (if visible)
           const ls = getPoint(landmarks, 11);
