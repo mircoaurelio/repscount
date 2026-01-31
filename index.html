@@ -517,10 +517,8 @@
           min-width: 0;
           padding: 8px;
           gap: 8px;
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          max-height: 10vh;
+          display: block;
+          max-height: none;
         }
 
         .row { display: none; }
@@ -530,16 +528,17 @@
         #advancedPanel { display: none; }
 
         .buttons {
-          display: flex;
-          gap: 6px;
-          grid-template-columns: none;
-          justify-content: flex-end;
+          width: 100%;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
         }
         button {
-          padding: 7px 8px;
+          padding: 10px 10px;
           border-radius: 12px;
-          font-size: 12px;
+          font-size: 13px;
           line-height: 1;
+          min-height: 44px;
         }
 
         /* Center hint smaller on mobile */
@@ -629,6 +628,7 @@
                 <select id="exercise">
                   <option value="squats">Squats</option>
                   <option value="pushups">Push-ups</option>
+                  <option value="handstandpushups">Handstand push-ups</option>
                   <option value="pullups">Pull-ups</option>
                 </select>
               </label>
@@ -1656,6 +1656,12 @@
           }
         }
 
+        function updateHandstandPushupCounter(landmarks, now) {
+          // Handstand push-ups: for now, reuse the same elbow-angle logic as push-ups.
+          // If you want, we can tune thresholds/logic specifically for inverted reps later.
+          return updatePushupCounter(landmarks, now);
+        }
+
         function updatePullupCounter(landmarks, now) {
           // Use elbow flexion/extension similar to push-ups, but count when reaching the "top" (flexed elbows)
           // left: shoulder 11, elbow 13, wrist 15
@@ -1862,6 +1868,8 @@
 
             if (exerciseEl.value === "squats") updateSquatCounter(results.poseLandmarks, now);
             if (exerciseEl.value === "pushups") updatePushupCounter(results.poseLandmarks, now);
+            if (exerciseEl.value === "handstandpushups")
+              updateHandstandPushupCounter(results.poseLandmarks, now);
             if (exerciseEl.value === "pullups") updatePullupCounter(results.poseLandmarks, now);
           });
 
